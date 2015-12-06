@@ -232,6 +232,63 @@ local function functionalize(input)
 
    else
       -- input is assumed to be a module:
+
+      -- Case 1: Criterion without parameters
+      if torch.isTypeOf(input, 'nn.Criterion') then
+         local mod = input
+         local nnObject = input
+
+         local function forward(x, y)
+            return nnObject:forward(x, y)
+         end
+
+         local function backward(g, x, y)
+            return nnObject:backward(x, y)
+         end
+
+         local mod = {}
+
+         local fn = function(x, W, b)
+            local grads = nil
+            local backFnDesc = {
+               object = mod,
+               method = "backward",
+               name = torch.typename(input),
+               fn = backward
+            }
+            local gradFn = {
+               function(g,ans,x,y)
+                  grads = nodeApply(backFnDesc, nil, true, g, x, y)
+               end,
+               function(g,ans,x,y)
+                  return util.fillSameSizeAs(y, 0)
+               end,
+            }
+            local fnDesc = {
+               package = input,
+               object = mod,
+               method = "forward",
+               name = torch.typename(input),
+               fn = forward
+            }
+            return nodeApply(fnDesc, gradFn, true, x, W, b)
+         end
+
+         mod.entry = fn
+         mod.forward = forward
+         mod.backward = backward
+
+         -- Shortcut:
+         setmetatable(mod, {
+                         __call = function(self, ...)
+                            return self.entry(...)
+                         end
+         })
+
+         return mod
+      end
+
+      -- Case 2: Module with parameters
       local mod = input
       local nnObject = input
       local params = nnObject:parameters()

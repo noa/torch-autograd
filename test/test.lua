@@ -195,7 +195,7 @@ local tests = {
       tester:assert(gradcheck(NarrowFn1D, {W=W,x=x1}), "Incorrect gradient")
       tester:assert(gradcheck(NarrowFn2D, {W=W,x=x2}), "Incorrect gradient")
    end,
-   
+
    Clamp = function()
       local W = torch.Tensor(5,25):normal()
       local clampFn = function(inputs)
@@ -204,7 +204,7 @@ local tests = {
       tester:assert(clampFn({W=W})>0, "Basic sanity check failed")
       tester:assert(gradcheck(clampFn,{W=W}), "Incorrect gradient")
    end,
-   
+
    Clone = function()
       local x = torch.Tensor(2,25):normal()
 
@@ -1152,7 +1152,7 @@ local tests = {
       local _, msg = pcall(test)
       tester:assert(string.find(msg, "missing gradient for function"), "missing gradient not reported")
    end,
-   
+
    Optim = function()
       local moses = require 'moses'
       local tablex = require 'pl.tablex'
@@ -1202,6 +1202,22 @@ local tests = {
       end
 
       tester:asserteq(loss1, loss3, 'sgd wrapper should produce same loss')
+   end,
+
+   FunctionalizeCriterionModule = function()
+      local input = {torch.rand(2,10), torch.randn(2,10)}
+      local target = {torch.IntTensor{1,8}, torch.randn(2,10)}
+      local nll = nn.ClassNLLCriterion()
+      local mse = nn.MSECriterion()
+      local pc = nn.ParallelCriterion():add(nll, 0.5):add(mse)
+      local output1 = pc:forward(input, target)
+      local pcf = autograd.functionalize(pc)
+      local output2 = pcf(input, target)
+      tester:asserteq(output1, output2, 'loss not equal')
+      local f = function(x, y)
+         return pcf(x.input, y)
+      end
+      tester:assert(gradcheck(f, {input=input}, target), 'incorrect gradients')
    end
 }
 
@@ -1221,4 +1237,3 @@ tester:add(prefixTests("Optimized_", tests, { })):run()
 autograd.optimize(false)
 tester = totem.Tester()
 tester:add(prefixTests("Direct_", tests, { AutoModule = true, DebuggerDivZero = true })):run()
-
