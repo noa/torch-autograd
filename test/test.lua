@@ -1214,10 +1214,10 @@ local tests = {
       local pcf = autograd.functionalize(pc)
       local output2 = pcf(input, target)
       tester:asserteq(output1, output2, 'loss not equal')
-      local f = function(x, y)
-         return pcf(x.input, y)
+      local f = function(input, target)
+         return pcf(input, target)
       end
-      tester:assert(gradcheck(f, {input=input}, target), 'incorrect gradients')
+      tester:assert(gradcheck(f, input, target), 'incorrect gradients')
    end
 }
 
